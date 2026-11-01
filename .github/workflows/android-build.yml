@@ -30,7 +30,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - 
       - name: Install SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null
