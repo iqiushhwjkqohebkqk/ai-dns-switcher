@@ -82,6 +82,47 @@ jobs:
           print("Kotlin JVM target: 17")
           PY
           
+      - name: Fix OkHttp DNS implementation
+        working-directory: AIDnsSwitcher
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("app/src/main/java/ru/aidnsswitcher/app/DnsProbe.kt")
+          source = path.read_text()
+
+          old = '''            .dns { requestedHost ->
+                val ips = if (requestedHost.equals(host, ignoreCase = true)) {
+                    knownAddresses
+                } else {
+                    queryA(dohUrl, requestedHost)
+                }
+                if (ips.isEmpty()) throw UnknownHostException("Нет A-записи для $requestedHost")
+                ips.map { InetAddress.getByName(it) }
+            }'''
+
+          new = '''            .dns(object : okhttp3.Dns {
+                override fun lookup(hostname: String): List<InetAddress> {
+                    val ips = if (hostname.equals(host, ignoreCase = true)) {
+                        knownAddresses
+                    } else {
+                        queryA(dohUrl, hostname)
+                    }
+                    if (ips.isEmpty()) throw UnknownHostException("Нет A-записи для $hostname")
+                    return ips.map { InetAddress.getByName(it) }
+                }
+            })'''
+
+          if source.count(old) == 1:
+              source = source.replace(old, new)
+              path.write_text(source)
+              print("OkHttp DNS implementation patched")
+          elif new in source:
+              print("OkHttp DNS implementation already patched")
+          else:
+              raise SystemExit("Expected DNS implementation not found; build stopped")
+          PY
+          
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
