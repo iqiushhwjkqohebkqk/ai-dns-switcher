@@ -23,7 +23,40 @@ jobs:
         run: |
           unzip -q AIDnsSwitcher-github-ready.zip -d .
           test -d AIDnsSwitcher
+          
+      - name: Set minimum Android version
+        working-directory: AIDnsSwitcher
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
 
+          files = sorted(Path("app").glob("build.gradle*"))
+          if not files:
+              raise SystemExit("App Gradle file not found")
+
+          pattern = re.compile(
+              r"(?m)^([ \t]*minSdk(?:Version)?[ \t]*(?:=[ \t]*)?)(\d+)([ \t]*(?://.*)?$)"
+          )
+
+          total = 0
+          for path in files:
+              source = path.read_text()
+              updated, count = pattern.subn(
+                  lambda m: m.group(1) + str(max(29, int(m.group(2)))) + m.group(3),
+                  source
+              )
+              if count:
+                  path.write_text(updated)
+                  total += count
+                  print(f"Updated {path}: {count} declaration(s)")
+
+          if total == 0:
+              raise SystemExit("No numeric minSdk declaration found; build stopped safely")
+
+          print("Minimum Android version is now at least API 29")
+          PY
+          
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
